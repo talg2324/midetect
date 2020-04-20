@@ -191,9 +191,8 @@ def show_res(hists):
 
 if __name__ == "__main__":
 
-
-    indim = 2
-    batch_size=16
+    indim = 3
+    batch_size=64
     cuda=True
     device = torch.device('cuda:0' if cuda else 'cpu')
     net = "CNN"
@@ -208,7 +207,7 @@ if __name__ == "__main__":
     
     data = dataloader.split_data()  
 
-    train_hists = training(model, data, 50, batch_size, cuda)
+    train_hists = training(model, data, 10, batch_size, cuda)
     
     show_res(train_hists)
 
