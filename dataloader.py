@@ -230,11 +230,11 @@ def split_data():
 
     # data is already randomized
 
-    training = ( data[:split*8], labels[:split*8])
+    training = ( data[:split*6], labels[:split*6])
 
-    validation = (data[split*8:split*9], labels[split*8:split*9])
+    validation = (data[split*6:split*8], labels[split*6:split*8])
 
-    test = (data[split*9:], labels[split*9:])
+    test = (data[split*8:], labels[split*8:])
     
     return {'Training': training, 'Validation': validation, 'Test': test}
 

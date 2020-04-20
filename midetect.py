@@ -8,6 +8,58 @@ from matplotlib import pyplot as plt
 from subprocess import call
 import sys
 
+def main():
+
+    """"
+
+    Select a model
+    Run a full experiment
+    -Import data
+    -Train
+    -Validate model against test set
+    -Save model and plot results
+
+    """
+
+    indim = 3
+    batch_size=64
+    cuda=True
+    device = torch.device('cuda:0' if cuda else 'cpu')
+    net = "CNN"
+    # net = "RNN"
+
+    if net == "RNN":
+        model = LSTM(indim, hidden_dim=32, batch_size=batch_size, dropout=0.2, wantscuda=cuda, num_layers=2)
+    elif net == "CNN":
+        model = CNN1D(indim, batch_size, dropout=0.5, wantscuda=cuda)
+
+    model = model.float().to(device)
+    
+    data = dataloader.split_data()  
+
+    train_hists = training(model, data, 15, batch_size, cuda)
+    
+    show_res(train_hists)
+
+    evaluate(model, data['Test'], batch_size, cuda, validation=False)
+
+def pre_trained():
+
+    # Load a pre-trained model to visualize test results
+    data = dataloader.split_data()
+
+    indim = 3
+    batch_size=64
+    cuda=True
+    device = torch.device('cuda:0' if cuda else 'cpu')
+    net = "CNN"
+
+    model = CNN1D(indim, batch_size, dropout=0.5, wantscuda=cuda)
+
+    model = model.to(device)
+
+    evaluate(model, data['Test'], batch_size, cuda, validation=False)
+
 def training(_model, _data, num_epochs, batch_size, wantscuda):
 
     learning_rate=0.001
@@ -146,6 +198,8 @@ def evaluate(_model, test, batch_size, wantscuda, validation=True):
     no_batches = len(test[0])//batch_size
 
     _model.eval()
+    
+    confusion = np.zeros((3,3))
 
     for k in range(no_batches):
 
@@ -157,9 +211,16 @@ def evaluate(_model, test, batch_size, wantscuda, validation=True):
         
         acc = binary_acc(outputs, y_batch)
 
+        if not validation:
+            confusion += measure_acc(outputs,y_batch)
+
         num_correct += acc
 
     acc = num_correct/(no_batches*batch_size)
+
+    if not validation:
+        plot_confusion(confusion, no_batches*batch_size)
+
     print('Test: ' + testtype)
     print("Accuracy: {:.3f}%".format(acc*100))
     
@@ -189,28 +250,81 @@ def show_res(hists):
     plt.ylabel('Loss by Batch')
     plt.show()
 
+def measure_acc(y_hat, y_pred):
+
+    pred = torch.round(y_hat)
+    pred = pred.type_as(y_pred)
+
+    pairs = torch.stack((pred,y_pred)).transpose(1,0)
+
+    confusion = np.zeros((3,3))
+
+    for pair in pairs:
+        confusion[pair[0]][pair[1]] += 1
+
+        confusion[pair[0]][2] += 1
+        confusion[2][pair[1]] += 1
+
+        confusion[2][2] += 1
+
+    return confusion
+
+def plot_confusion(confusion, sample_size):
+
+        plt.subplot(2,1,1)
+    
+        rows = ['0', '1', 'total']
+        columns = ['0', '1', 'total']
+        table = plt.table(cellText=confusion,
+                  rowLabels=rows,
+                  colLabels=columns, 
+                  bbox=[0.15,0.2,0.7,0.5])
+        plt.title('Test Set Confusion Matrix')
+        plt.axis('off')
+        plt.text(0.5,0.1, 'Targets', horizontalalignment='center')
+        plt.text(0,0.3, 'Predictions', rotation=90)
+
+        # table indeces include labels
+        table[(1,1)].set_facecolor('#EF3030')
+        table[(2,0)].set_facecolor('#EF3030')
+
+        table[(1,0)].set_facecolor('#98DC95')
+        table[(2,1)].set_facecolor('#98DC95')
+
+        table[(3,2)].set_facecolor('#5D6D7E')
+
+        plt.subplot(2,1,2)
+
+        
+        rows = ['0', '1', 'total']
+        columns = ['0', '1', 'total']
+        table = plt.table(cellText=np.around(confusion/sample_size,3),
+                  rowLabels=rows,
+                  colLabels=columns, 
+                  bbox=[0.15,0.2,0.7,0.5])
+        plt.title('Test Set Confusion Matrix - Probabilities')
+        plt.axis('off')
+        plt.text(0.5,0.1, 'Targets', horizontalalignment='center')
+        plt.text(0,0.3, 'Predictions', rotation=90)
+
+        # table indeces include labels
+        table[(1,1)].set_facecolor('#EF3030')
+        table[(2,0)].set_facecolor('#EF3030')
+
+        table[(1,0)].set_facecolor('#98DC95')
+        table[(2,1)].set_facecolor('#98DC95')
+
+        table[(3,2)].set_facecolor('#5D6D7E')
+
+        plt.show()
+
+
+
 if __name__ == "__main__":
 
-    indim = 3
-    batch_size=64
-    cuda=True
-    device = torch.device('cuda:0' if cuda else 'cpu')
-    net = "CNN"
-    # net = "RNN"
+    np.random.seed(7)
 
-    if net == "RNN":
-        model = LSTM(indim, hidden_dim=32, batch_size=batch_size, dropout=0.2, wantscuda=cuda, num_layers=2)
-    elif net == "CNN":
-        model = CNN1D(indim, batch_size, dropout=0.5, wantscuda=cuda)
+    # main()
 
-    model = model.float().to(device)
-    
-    data = dataloader.split_data()  
-
-    train_hists = training(model, data, 10, batch_size, cuda)
-    
-    show_res(train_hists)
-
-    evaluate(model, data['Test'], batch_size, cuda, validation=False)
-
+    pre_trained()
     pass
