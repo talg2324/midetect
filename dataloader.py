@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from scipy import signal
 import scipy.io
+import preprocess
 
 
 def get_midata():
@@ -82,6 +83,7 @@ def get_bihdata():
     db.to_pickle("./Regwaveforms.csv")
 
 def get_cpscdata():
+
     dbpath = "C:/CodeBank/Other/MI/midetect/database/cpsc/"
 
     db = pd.DataFrame()
@@ -95,7 +97,8 @@ def get_cpscdata():
         labels = reference.iloc[k,1:]
 
         # 7 = ST depression
-        if 7 in labels.values:
+        # 8 = ST elevation
+        if 7 in labels.values: #or 8 in labels.values:
             label = 1
         else:
             label = 0
@@ -152,8 +155,11 @@ def augment(datapoint, fs):
 
         if (abs(lii).max() < thresh1 or abs(v1).max() < thresh2 or abs(v6).max() < thresh3):
             break
+        
+        # Get the morlet wavelet coefficients for 0.8-1 Hz
+        wvlt = preprocess.wavelet(lii)
 
-        new_datapoint = [{'label':label, 'LII': signal.resample(lii, 2000), 'V1':signal.resample(v1, 2000), 'V6':signal.resample(v6, 2000)}]
+        new_datapoint = [{'label':label, 'LII': signal.resample(lii, 2000), 'V1':signal.resample(v1, 2000), 'V6':signal.resample(v6, 2000), 'Wavelets':wvlt}]
 
         df = pd.DataFrame(new_datapoint)
         outputs = outputs.append(df, ignore_index=True)
@@ -164,9 +170,9 @@ def import_data(dbpath):
     df = pd.read_pickle(dbpath)
     return df
 
-def prepare_data():
-    
-    np.random.seed(7)
+def mix_dbs():
+
+    # Use this function for integration of a second database into set
 
     db1 = pd.read_pickle("./database/MIwaveforms.csv")
     db2 = pd.read_pickle("./database/CPSC.csv")
@@ -202,6 +208,37 @@ def prepare_data():
     v1.to_pickle('./database/V1.csv')
     v6.to_pickle('./database/V6.csv')
 
+def prepare_data():
+
+    db = pd.read_pickle("./database/CPSC.csv")
+
+    trues = db[db['label']==1]
+
+    falses = db[db['label']==0]
+
+    db1 = trues.append(falses.sample(len(trues)), ignore_index=True)
+
+    # Shuffle
+
+    db1 = db1.sample(frac=1).reset_index(drop=True)
+
+    # Split to smaller files
+
+    labels = db1.iloc[:,0]
+
+    l2 = db1.iloc[:,1].apply(pd.Series)
+
+    v1 = db1.iloc[:,2].apply(pd.Series)
+
+    v6 = db1.iloc[:,3].apply(pd.Series)
+
+    wvlt = db1.iloc[:,4].apply(pd.Series)
+
+    labels.to_pickle('./database/Labels.csv')
+    l2.to_pickle('./database/L2.csv')
+    v1.to_pickle('./database/V1.csv')
+    v6.to_pickle('./database/V6.csv')
+    wvlt.to_pickle('./database/wvlt.csv')
 
 def split_data():
 
@@ -209,11 +246,13 @@ def split_data():
     l2 = pd.read_pickle('./database/L2.csv')
     v1 = pd.read_pickle('./database/V1.csv')
     v6 = pd.read_pickle('./database/V6.csv')
+    wvlt = pd.read_pickle('./database/wvlt.csv')
 
     labels = labels.values
     l2 = l2.values
     v1 = v1.values
     v6 = v6.values
+    wvlt = wvlt.values
 
     data = []
 
@@ -224,7 +263,8 @@ def split_data():
         l2_i = torch.tensor(l2[i])
         v1_i = torch.tensor(v1[i])
         v6_i = torch.tensor(v6[i])
-        data.append(torch.stack((l2_i, v1_i, v6_i)).transpose(1,0))
+        wvlt_i = torch.tensor(wvlt[i])
+        data.append(torch.stack((l2_i, v1_i, v6_i, wvlt_i)).transpose(1,0))
 
     split = len(labels)//10
 

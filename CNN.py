@@ -12,16 +12,16 @@ class CNN1D(nn.Module):
         self.output_dim=output_dim
 
         # Feature Extraction - Small kernel to preserve timesteps
-        self.layer1 = nn.Conv1d(in_channels=self.input_dim, out_channels=15, kernel_size=5, stride=1)
+        self.layer1 = nn.Conv1d(in_channels=self.input_dim, out_channels=50, kernel_size=5, stride=1)
 
         # Max Pooling
         self.maxing = nn.MaxPool1d(kernel_size=5)
         
         # Dimensional Reduction Layer
-        self.layer2 = nn.Conv1d(in_channels=15, out_channels=15, kernel_size=399, stride=1)
+        self.layer2 = nn.Conv1d(in_channels=50, out_channels=50, kernel_size=399, stride=1)
 
         # Output layers
-        self.preout = nn.Conv1d(in_channels=15, out_channels=self.output_dim, kernel_size=1)
+        self.preout = nn.Conv1d(in_channels=50, out_channels=self.output_dim, kernel_size=1)
         self.out = nn.Sigmoid()
 
         # Reusable layers

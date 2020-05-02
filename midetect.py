@@ -21,8 +21,8 @@ def main():
 
     """
 
-    indim = 3
-    batch_size=64
+    indim = 4
+    batch_size=128
     cuda=True
     device = torch.device('cuda:0' if cuda else 'cpu')
     net = "CNN"
@@ -31,13 +31,13 @@ def main():
     if net == "RNN":
         model = LSTM(indim, hidden_dim=32, batch_size=batch_size, dropout=0.2, wantscuda=cuda, num_layers=2)
     elif net == "CNN":
-        model = CNN1D(indim, batch_size, dropout=0.5, wantscuda=cuda)
+        model = CNN1D(indim, batch_size, dropout=0.2, wantscuda=cuda)
 
     model = model.float().to(device)
     
     data = dataloader.split_data()  
 
-    train_hists = training(model, data, 15, batch_size, cuda)
+    train_hists = training(model, data, 100, batch_size, cuda)
     
     show_res(train_hists)
 
@@ -48,8 +48,8 @@ def pre_trained():
     # Load a pre-trained model to visualize test results
     data = dataloader.split_data()
 
-    indim = 3
-    batch_size=64
+    indim = 4
+    batch_size=128
     cuda=True
     device = torch.device('cuda:0' if cuda else 'cpu')
     net = "CNN"
@@ -134,15 +134,15 @@ def training(_model, _data, num_epochs, batch_size, wantscuda):
 
         val_acc_hist.append(val_acc)
 
-        if t > 30 and earlystopper(val_acc_hist):
-            print('Early stopping at:' + str(t))
-            break
+        # if t > 100 and earlystopper(val_acc_hist):
+        #     print('Early stopping at:' + str(t))
+        #     break
 
     torch.save(_model.state_dict(), './state_dict.pt')
 
     return (np.array(val_acc_hist), np.array(rltime_hist))
 
-def earlystopper(epoch_hist, patience=10):
+def earlystopper(epoch_hist, patience=20):
 
     """
     Early stop based on validation accuracy
@@ -160,7 +160,7 @@ def earlystopper(epoch_hist, patience=10):
     ind = history_seq.index(max1)
 
     hist2 = history_seq[:ind]
-    hist2.extend(history_seq[ind:])
+    hist2.extend(history_seq[ind+1:])
 
     max2 = max(history_seq)
 
@@ -324,7 +324,10 @@ if __name__ == "__main__":
 
     np.random.seed(7)
 
-    # main()
+    dataloader.get_cpscdata()
+    dataloader.prepare_data()
 
-    pre_trained()
+    main()
+
+    # pre_trained()
     pass
