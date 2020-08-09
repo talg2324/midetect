@@ -5,18 +5,21 @@ import numpy as np
 
 def wavelet(signal):
 
-    scales = np.arange(500,100,-25)
-    scales = np.hstack([scales, np.arange(100,20,-10)])
-    scales = np.hstack([scales, np.arange(20,0,-5)])
-    scales = np.hstack([scales, np.arange(5,1,-1)])
-    scales = np.hstack([scales, np.arange(1,0.06, -0.01)])
+    level = 4 
 
-    coeffs, freqs = pywt.cwt(signal, scales, 'morl')
+    coeffs = pywt.wavedec(signal, 'sym2', 'periodic', level=level-1)
 
-    return np.sum(coeffs, axis=0)
+    # Remove Low Freq Approximation Coefficients
+    coeffs[0] = np.zeros_like(coeffs[0])
+
+    # Save the High Freq Detail Signal
+    idwt = pywt.waverec(coeffs, 'sym2', 'periodic')
+
+    return minmax(idwt)
     
+def minmax(signal):
 
-    
+    return (signal - signal.min()) / (signal.max() - signal.min())
 
 def visualize_spectrum(signal, label):
 
@@ -62,4 +65,32 @@ def visualize_spectrum(signal, label):
     plt.imshow(coeffs, extent=[0, len(signal), 1, 600], cmap='PRGn', aspect='auto',
             vmax=abs(coeffs).max(), vmin=-abs(coeffs).max())  
 
+    plt.show()
+
+def visualize_dwt(signal):
+
+    level = 4
+
+    coeffs = pywt.wavedec(signal, 'sym2', 'periodic', level=level-1)
+
+    not_coeffs = []
+
+    for l in range(level):
+        not_coeffs.append(np.zeros_like(coeffs[l]))
+
+    for i in range(1,level):
+        not_coeffs[i] = coeffs[i]
+
+    hpf = pywt.waverec(not_coeffs, 'sym2', 'periodic')
+
+    plt.subplot(311)
+    plt.plot(signal)
+    plt.title('Signal')
+    plt.subplot(312)
+    plt.plot(coeffs[0])
+    plt.title('Approximation Coefficients')
+    plt.subplot(313)
+    plt.plot(hpf)
+    plt.title('Detail Coefficients')
+    
     plt.show()

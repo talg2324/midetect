@@ -96,13 +96,6 @@ def get_cpscdata():
 
         labels = reference.iloc[k,1:]
 
-        # 7 = ST depression
-        # 8 = ST elevation
-        if 7 in labels.values: #or 8 in labels.values:
-            label = 1
-        else:
-            label = 0
-
         mat = scipy.io.loadmat(dbpath+patient+'.mat')
 
         signals = mat['ECG'][0][0][2]
@@ -111,9 +104,17 @@ def get_cpscdata():
         v1 = signals[6,:]
         v6 = signals[-1,:]
 
+        # 7 = ST depression
+        # 8 = ST elevation
+        if 7 in labels.values or 8 in labels.values:
+            label = 1
+        else:
+            label = 0
+
         datapoint = (label, l2, v1, v6)
         data = augment(datapoint, 500)
-        db = db.append(data, ignore_index=True)
+        if not data.empty:
+            db = db.append(data, ignore_index=True)
 
     db.to_pickle("./database/CPSC.csv")
 
@@ -140,6 +141,8 @@ def augment(datapoint, fs):
 
     outputs = pd.DataFrame()
 
+    # Normalize signals
+
     # Sometimes ECG has dead signal at the edges
     # Toss broken ECG pieces based on thresholding
 
@@ -147,19 +150,35 @@ def augment(datapoint, fs):
     thresh2 = datapoint[2].max()*0.07
     thresh3 = datapoint[3].max()*0.07
 
+    if thresh1 < 1e-5 or thresh2 < 1e-5 or thresh3 < 1e-5:
+        return outputs
+
     for i in range(len(datapoint[1])//crop):
 
         lii = datapoint[1][i*crop:(i+1)*crop]
         v1 = datapoint[2][i*crop:(i+1)*crop]
         v6 = datapoint[3][i*crop:(i+1)*crop]
 
-        if (abs(lii).max() < thresh1 or abs(v1).max() < thresh2 or abs(v6).max() < thresh3):
+        hasnans = np.sum(np.isnan(lii)) + np.sum(np.isnan(v1)) + np.sum(np.isnan(v6))
+
+        if (abs(lii).max() < thresh1 or abs(v1).max() < thresh2 or abs(v6).max() < thresh3 or hasnans > 0):
             break
         
-        # Get the morlet wavelet coefficients for 0.8-1 Hz
-        wvlt = preprocess.wavelet(lii)
+        # Get the morlet wavelet coefficients
+        wvlt_ii = preprocess.wavelet(lii)
+        wvlt_v1 = preprocess.wavelet(v1)
+        wvlt_v6 = preprocess.wavelet(v6)
 
-        new_datapoint = [{'label':label, 'LII': signal.resample(lii, 2000), 'V1':signal.resample(v1, 2000), 'V6':signal.resample(v6, 2000), 'Wavelets':wvlt}]
+        lii = preprocess.minmax(lii)
+        v1 = preprocess.minmax(v1)
+        v6 = preprocess.minmax(v6)
+
+        new_datapoint = [{'label':label, 'LII': signal.resample(lii, 2000),
+                        'V1':signal.resample(v1, 2000),
+                        'V6':signal.resample(v6, 2000),
+                        'Wavelets_ii':wvlt_ii,
+                        'Wavelets_v1':wvlt_v1,
+                        'Wavelets_v6':wvlt_v6}]
 
         df = pd.DataFrame(new_datapoint)
         outputs = outputs.append(df, ignore_index=True)
@@ -216,7 +235,8 @@ def prepare_data():
 
     falses = db[db['label']==0]
 
-    db1 = trues.append(falses.sample(len(trues)), ignore_index=True)
+    # db1 = trues.append(falses.sample(3*len(trues)), ignore_index=True)
+    db1 = trues.append(falses, ignore_index=True)
 
     # Shuffle
 
@@ -232,13 +252,19 @@ def prepare_data():
 
     v6 = db1.iloc[:,3].apply(pd.Series)
 
-    wvlt = db1.iloc[:,4].apply(pd.Series)
+    wvlt_ii = db1.iloc[:,4].apply(pd.Series)
+    
+    wvlt_v1 = db1.iloc[:,5].apply(pd.Series)
+    
+    wvlt_v6 = db1.iloc[:,6].apply(pd.Series)
 
     labels.to_pickle('./database/Labels.csv')
     l2.to_pickle('./database/L2.csv')
     v1.to_pickle('./database/V1.csv')
     v6.to_pickle('./database/V6.csv')
-    wvlt.to_pickle('./database/wvlt.csv')
+    wvlt_ii.to_pickle('./database/wvltii.csv')
+    wvlt_v1.to_pickle('./database/wvltv1.csv')
+    wvlt_v6.to_pickle('./database/wvltv6.csv')
 
 def split_data():
 
@@ -246,13 +272,17 @@ def split_data():
     l2 = pd.read_pickle('./database/L2.csv')
     v1 = pd.read_pickle('./database/V1.csv')
     v6 = pd.read_pickle('./database/V6.csv')
-    wvlt = pd.read_pickle('./database/wvlt.csv')
+    wvlt_ii = pd.read_pickle('./database/wvltii.csv')
+    wvlt_v1 = pd.read_pickle('./database/wvltv1.csv')
+    wvlt_v6 = pd.read_pickle('./database/wvltv6.csv')
 
     labels = labels.values
     l2 = l2.values
     v1 = v1.values
     v6 = v6.values
-    wvlt = wvlt.values
+    wvlt_ii = wvlt_ii.values
+    wvlt_v1 = wvlt_v1.values
+    wvlt_v6 = wvlt_v6.values
 
     data = []
 
@@ -263,9 +293,12 @@ def split_data():
         l2_i = torch.tensor(l2[i])
         v1_i = torch.tensor(v1[i])
         v6_i = torch.tensor(v6[i])
-        wvlt_i = torch.tensor(wvlt[i])
-        data.append(torch.stack((l2_i, v1_i, v6_i, wvlt_i)).transpose(1,0))
+        wvlt_ii_i = torch.tensor(wvlt_ii[i])
+        wvlt_v1_i = torch.tensor(wvlt_v1[i])
+        wvlt_v6_i = torch.tensor(wvlt_v6[i])
+        data.append(torch.stack((l2_i, v1_i, v6_i, wvlt_ii_i, wvlt_v1_i, wvlt_v6_i)).transpose(1,0))
 
+    class_weight = (len(labels[labels==0])/len(labels), len(labels[labels==1])/len(labels))
     split = len(labels)//10
 
     # data is already randomized
@@ -276,5 +309,5 @@ def split_data():
 
     test = (data[split*8:], labels[split*8:])
     
-    return {'Training': training, 'Validation': validation, 'Test': test}
+    return {'Training': training, 'Validation': validation, 'Test': test}, class_weight
 
