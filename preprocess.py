@@ -3,20 +3,26 @@ from scipy import signal as sp
 from matplotlib import pyplot as plt
 import numpy as np
 
-def wavelet(signal):
-
-    level = 4 
+def wavelet(signal, wvlt='sym2', level=6, desired_coeffs='approx'):
 
     coeffs = pywt.wavedec(signal, 'sym2', 'periodic', level=level-1)
 
-    # Remove Low Freq Approximation Coefficients
-    coeffs[0] = np.zeros_like(coeffs[0])
+    if desired_coeffs=='approx':
 
-    # Save the High Freq Detail Signal
-    idwt = pywt.waverec(coeffs, 'sym2', 'periodic')
+        # Use the approximation coefficients as a feature
+        output = sp.resample(coeffs[0], len(signal))
+        return minmax(output)
 
-    return minmax(idwt)
-    
+    else:
+
+        # Remove Low Freq Approximation Coefficients
+        coeffs[0] = np.zeros_like(coeffs[0])
+
+        # Save the High Freq Detail Signal
+        idwt = pywt.waverec(coeffs, 'sym2', 'periodic')
+
+        return minmax(idwt)
+        
 def minmax(signal):
 
     return (signal - signal.min()) / (signal.max() - signal.min())
@@ -67,11 +73,9 @@ def visualize_spectrum(signal, label):
 
     plt.show()
 
-def visualize_dwt(signal):
+def visualize_dwt_filter(signal, wvlt='sym2', level=4):
 
-    level = 4
-
-    coeffs = pywt.wavedec(signal, 'sym2', 'periodic', level=level-1)
+    coeffs = pywt.wavedec(signal, wvlt, 'periodic', level=level-1)
 
     not_coeffs = []
 
@@ -81,7 +85,8 @@ def visualize_dwt(signal):
     for i in range(1,level):
         not_coeffs[i] = coeffs[i]
 
-    hpf = pywt.waverec(not_coeffs, 'sym2', 'periodic')
+    lpf = pywt.waverec(not_coeffs, wvlt, 'periodic')
+    hpf = pywt.waverec(not_coeffs, wvlt, 'periodic')
 
     plt.subplot(311)
     plt.plot(signal)
@@ -93,4 +98,18 @@ def visualize_dwt(signal):
     plt.plot(hpf)
     plt.title('Detail Coefficients')
     
+    plt.show()
+
+def visualize_dwt(signal, level=6, wvlt='sym2'):
+
+    coeffs = pywt.wavedec(signal, 'sym2', 'periodic', level=level-1)
+
+    plt.subplot(level,1,1)
+    plt.plot(signal)
+
+    for l in range(level-1):
+
+        plt.subplot(level,1,2+l)
+        plt.plot(coeffs[l])
+
     plt.show()

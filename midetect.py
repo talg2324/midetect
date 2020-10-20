@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import math
 import random
-from model import LSTM
+from LSTM import LSTM
 from CNN import CNN1D
 from matplotlib import pyplot as plt
 from subprocess import call
@@ -392,8 +392,8 @@ if __name__ == "__main__":
 
     np.random.seed(7)
 
-    # dataloader.get_cpscdata()
-    # dataloader.prepare_data()
+    dataloader.get_cpscdata()
+    dataloader.prepare_data()
 
     main()
 
